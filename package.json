@@ -1,0 +1,17 @@
+{
+  "dependencies": {
+    "@cornerstonejs/core": "^4.20.0",
+    "@cornerstonejs/dicom-image-loader": "^4.20.0",
+    "@cornerstonejs/tools": "^4.20.0",
+    "cloudinary": "^1.41.3",
+    "dicom-parser": "^1.8.21",
+    "express": "^5.2.1",
+    "multer": "^2.1.1",
+    "multer-storage-cloudinary": "^4.0.0",
+    "recharts": "^3.8.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3"
+  }
+}
