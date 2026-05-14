@@ -24,33 +24,63 @@ export const getById = async (id) => {
   return result.rows[0];
 };
 
-// Lấy danh sách lượt khám theo phòng (Dùng cho giao diện PatientQueue)
+// Lấy danh sách lượt khám theo phòng (PatientQueue: bỏ hoàn thành / đã hủy; FIFO: ngày khám + mã lượt; Đang khám lên trước)
 export const getByPhong = async (maphong) => {
   const query = `
-    SELECT lk.*, bn.hoten, bn.gioitinh, bn.namsinh
+    SELECT lk.*, bn.hoten, bn.gioitinh, bn.namsinh,
+      ROW_NUMBER() OVER (
+        ORDER BY
+          CASE WHEN TRIM(COALESCE(lk.trangthai, '')) = 'Đang khám' THEN 0 ELSE 1 END,
+          lk.ngaykham ASC NULLS LAST,
+          lk.maluotkham ASC
+      )::int AS stt_trong_phong
     FROM luotkham lk
     JOIN benhnhan bn ON lk.mabenhnhan = bn.mabenhnhan
     WHERE lk.maphong = $1
-    ORDER BY lk.maluotkham ASC
+      AND TRIM(COALESCE(lk.trangthai, '')) NOT IN ('Hoàn thành', 'Đã hủy')
+    ORDER BY
+      CASE WHEN TRIM(COALESCE(lk.trangthai, '')) = 'Đang khám' THEN 0 ELSE 1 END,
+      lk.ngaykham ASC NULLS LAST,
+      lk.maluotkham ASC
   `;
   const result = await pool.query(query, [maphong]);
   return result.rows;
 };
 
-/** Lượt khám chưa hoàn thành của bệnh nhân (trạng thái khác "Hoàn thành"). */
+/** Lượt khám chưa kết thúc của bệnh nhân (trừ Hoàn thành / Đã hủy). */
 export const findIncompleteVisitByMabenhnhan = async (mabenhnhan) => {
   const result = await pool.query(
     `
     SELECT maluotkham, trangthai
     FROM luotkham
     WHERE mabenhnhan = $1
-      AND TRIM(COALESCE(trangthai, '')) <> 'Hoàn thành'
+      AND TRIM(COALESCE(trangthai, '')) NOT IN ('Hoàn thành', 'Đã hủy')
     ORDER BY maluotkham DESC
     LIMIT 1
     `,
     [mabenhnhan]
   );
   return result.rows[0];
+};
+
+/** Lượt khám khác trong cùng phòng đang «Đang khám» (trừ maluotkham đang xử lý). */
+export const findOtherDangKhamInPhong = async (maphong, excludeMaluotkham) => {
+  const pid = Number(maphong);
+  const exclude = Number(excludeMaluotkham);
+  if (!Number.isFinite(pid) || !Number.isFinite(exclude)) return null;
+  const result = await pool.query(
+    `
+    SELECT lk.maluotkham, bn.hoten
+    FROM luotkham lk
+    JOIN benhnhan bn ON lk.mabenhnhan = bn.mabenhnhan
+    WHERE lk.maphong = $1
+      AND lk.maluotkham <> $2
+      AND TRIM(COALESCE(lk.trangthai, '')) = 'Đang khám'
+    LIMIT 1
+    `,
+    [pid, exclude]
+  );
+  return result.rows[0] ?? null;
 };
 
 export const create = async (data) => {

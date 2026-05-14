@@ -65,7 +65,14 @@ export const getDetailForBenhNhan = async (mahosokham, mabenhnhan) => {
 
   const cls = await pool.query(
     `
-    SELECT c.machidinh, c.trangthai, cl.tendichvu, cl.loaidichvu
+    SELECT c.machidinh,
+           c.trangthai,
+           c.ketquahinhanh,
+           c.dicom_url,
+           c.dicom_tenfile,
+           c.ngaythuchien,
+           cl.tendichvu,
+           cl.loaidichvu
     FROM chidinhcanlamsang c
     JOIN canlamsang cl ON c.madichvu = cl.madichvu
     WHERE c.mahosokham = $1

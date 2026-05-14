@@ -102,3 +102,34 @@ export const remove = async (id) => {
   );
   return result.rows[0];
 };
+
+/**
+ * Danh sách phòng đang hoạt động kèm số chỉ định cận lâm sàng đang chờ / đang thực hiện.
+ * Dùng để chọn phòng phân chỉ định theo tải.
+ */
+export const getActiveRoomsWithChidinhQueue = async () => {
+  const result = await pool.query(
+    `
+    SELECT p.maphong,
+           p.tenphong,
+           p.chucnang,
+           p.trangthai,
+           p.machuyenkhoa,
+           ck.tenchuyenkhoa,
+           COALESCE(q.queue_count, 0)::int AS queue_count
+    FROM phongkham p
+    LEFT JOIN chuyenkhoa ck ON p.machuyenkhoa = ck.machuyenkhoa
+    LEFT JOIN (
+      SELECT maphong_thuchien, COUNT(*)::int AS queue_count
+      FROM chidinhcanlamsang
+      WHERE maphong_thuchien IS NOT NULL
+        AND TRIM(COALESCE(trangthai, '')) NOT IN ('Đã hoàn thành', 'Đã hủy')
+      GROUP BY maphong_thuchien
+    ) q ON q.maphong_thuchien = p.maphong
+    WHERE TRIM(COALESCE(p.trangthai, '')) = 'Đang hoạt động'
+       OR LOWER(TRIM(COALESCE(p.trangthai, ''))) = 'active'
+    ORDER BY p.maphong
+    `
+  );
+  return result.rows;
+};

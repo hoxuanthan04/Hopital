@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, CheckCircle2, AlertCircle } from 'lucide-react';
 import LuotKhamService from '../../services/LuotKhamService';
 import PhongKhamService from '../../services/phongkham.service';
 import { lookupBenhNhanByCccd, lookupDienthoaiInUse, addBenhNhan } from '../../services/benhnhanApi';
+
+/** Cùng khóa với PatientQueue — lưu mã máy phòng để mở đúng hàng chờ. */
+const MAMAY_STORAGE_KEY = 'tth_mamayphong';
 
 type CccdLookupState = 'idle' | 'loading' | 'found' | 'not_found';
 
@@ -22,6 +26,7 @@ const emptyPatient = {
 };
 
 const CreateVisit: React.FC = () => {
+  const navigate = useNavigate();
   const [patientData, setPatientData] = useState(emptyPatient);
 
   const [visitData, setVisitData] = useState({
@@ -59,8 +64,9 @@ const CreateVisit: React.FC = () => {
     const filtered = allRooms.filter((room) => {
       const name = (room.tenphong || '').toLowerCase();
       const dept = (room.tenchuyenkhoa || '').toLowerCase();
+      const fn = (room.chucnang || '').toLowerCase();
       const mid = String(room.machuyenkhoa ?? '');
-      return !q || name.includes(q) || dept.includes(q) || mid.includes(searchRoomQuery.trim());
+      return !q || name.includes(q) || dept.includes(q) || fn.includes(q) || mid.includes(searchRoomQuery.trim());
     });
     setFilteredRooms(filtered);
   }, [searchRoomQuery, allRooms]);
@@ -190,8 +196,20 @@ const CreateVisit: React.FC = () => {
       }
 
       await LuotKhamService.create(buildVisitPayload());
-      alert('Tiếp nhận bệnh nhân thành công!');
-      window.location.reload();
+      const selected = allRooms.find((r) => Number(r.maphong) === Number(visitData.maphong));
+      const mamay = selected?.mamayphong != null ? String(selected.mamayphong).trim() : '';
+      const tenPhong = (selected?.tenphong as string | undefined) || 'phòng đã chọn';
+      if (mamay) {
+        localStorage.setItem(MAMAY_STORAGE_KEY, mamay);
+      }
+      window.alert(
+        `Tiếp nhận thành công.\nBệnh nhân đã vào hàng chờ tại ${tenPhong} (thứ tự khám: ai tiếp nhận trước được gọi trước).${mamay ? '\nĐang mở danh sách chờ phòng này.' : '\nVào «Danh sách chờ» và nhập mã máy phòng (mamayphong) nếu chưa cấu hình.'}`,
+      );
+      if (mamay) {
+        navigate(`/staff/patientqueue?mamay=${encodeURIComponent(mamay)}`);
+      } else {
+        navigate('/staff/patientqueue');
+      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -205,7 +223,9 @@ const CreateVisit: React.FC = () => {
       <div className="flex items-center gap-3">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Tiếp nhận lượt khám</h2>
-          <p className="text-sm text-slate-500">Đăng ký lượt khám mới cho bệnh nhân tại quầy.</p>
+          <p className="text-sm text-slate-500">
+            Chọn phòng khám bên phải: bệnh nhân được gán thẳng vào hàng chờ phòng đó; thứ tự khám theo thời gian tiếp nhận (FIFO).
+          </p>
         </div>
       </div>
 
@@ -364,6 +384,7 @@ const CreateVisit: React.FC = () => {
                   <option>Khám thường</option>
                   <option>Khám bảo hiểm</option>
                   <option>Khám dịch vụ / VIP</option>
+                  <option>Chẩn đoán hình ảnh - xét nghiệm</option>
                 </select>
               </div>
               <div className="space-y-1">
@@ -399,7 +420,10 @@ const CreateVisit: React.FC = () => {
 
         <div className="space-y-6">
           <section className="bg-white p-6 rounded shadow-sm border border-slate-100 flex flex-col h-full">
-            <h3 className="font-bold text-slate-700 flex items-center gap-2 mb-4">3. Phân phòng khám</h3>
+            <h3 className="font-bold text-slate-700 flex items-center gap-2 mb-4">3. Phân phòng — vào hàng chờ phòng</h3>
+            <p className="text-xs text-slate-500 mb-3">
+              Bệnh nhân sau khi xác nhận sẽ nằm trong danh sách chờ của phòng được chọn; ai tiếp nhận trước có số thứ tự khám trước tại phòng đó.
+            </p>
 
             <div className="relative mb-4">
               <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
@@ -427,12 +451,17 @@ const CreateVisit: React.FC = () => {
                   <div className="flex justify-between items-start mb-1">
                     <span className="font-bold text-slate-800 text-sm">{room.tenphong}</span>
                     <span
-                      className={`w-2 h-2 rounded-full ${room.trangthai === 'Hoạt động' ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                      className={`w-2 h-2 rounded-full ${room.trangthai === 'Đang hoạt động' ? 'bg-emerald-500' : 'bg-slate-300'}`}
                     />
                   </div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase mb-2">
                     {room.tenchuyenkhoa || '—'}
                   </p>
+                  {room.chucnang && (
+                    <p className="text-[11px] text-blue-600 font-medium mb-2">
+                      Chức năng: {room.chucnang}
+                    </p>
+                  )}
                   <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
                     <AlertCircle size={12} /> {room.soluongcho || 0} người đợi
                   </div>

@@ -27,7 +27,14 @@ type ApiDetail = {
   ketquacanlamsang?: string | null;
   ngayhentaikham?: string | null;
   trangthai?: string | null;
-  chidinh?: Array<{ tendichvu?: string; trangthai?: string; loaidichvu?: string }>;
+  chidinh?: Array<{
+    tendichvu?: string;
+    trangthai?: string;
+    loaidichvu?: string;
+    ketquahinhanh?: string | null;
+    dicom_url?: string | null;
+    dicom_tenfile?: string | null;
+  }>;
   donthuocChiTiet?: Array<{
     tenthuoc?: string;
     lieudung?: string | null;
@@ -95,6 +102,9 @@ export default function MedicalResults() {
           date: string;
           isNormal: boolean;
           note?: string;
+          conclusion?: string;
+          dicomUrl?: string;
+          dicomName?: string;
         }>,
         prescriptions: [] as Array<{
           name: string;
@@ -121,7 +131,10 @@ export default function MedicalResults() {
         status: lab.trangthai || dash,
         date: visitDate,
         isNormal: done,
-        note: lab.loaidichvu ? `Loại: ${lab.loaidichvu}` : undefined
+        note: lab.loaidichvu ? `Loại: ${lab.loaidichvu}` : undefined,
+        conclusion: lab.ketquahinhanh || undefined,
+        dicomUrl: lab.dicom_url || undefined,
+        dicomName: lab.dicom_tenfile || undefined
       };
     });
 
@@ -312,6 +325,23 @@ export default function MedicalResults() {
                       <p className="text-sm text-orange-500 flex items-center gap-1 mt-1">
                         <AlertCircle className="h-3 w-3" /> {lab.note}
                       </p>
+                    )}
+                    {lab.conclusion && (
+                      <p className="text-sm text-slate-600 mt-2 max-w-2xl">
+                        <span className="font-medium text-slate-700">Kết luận: </span>
+                        {lab.conclusion}
+                      </p>
+                    )}
+                    {lab.dicomUrl && (
+                      <a
+                        href={lab.dicomUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-sm font-medium text-[#0084FF] hover:underline mt-2"
+                      >
+                        <Download className="h-3 w-3" />
+                        {lab.dicomName || 'Tải file DICOM'}
+                      </a>
                     )}
                   </div>
                   <div className="text-right">

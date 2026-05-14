@@ -18,6 +18,7 @@ export const postChidinh = async (req, res) => {
       mahosokham,
       madichvu,
       bacsichidinh,
+      maluotkham,
     });
     let sess = null;
     if (maluotkham != null) {
@@ -46,6 +47,47 @@ export const patchChidinhHoanThanh = async (req, res) => {
   } catch (error) {
     const code = error.message.includes("Không tìm") ? 404 : 400;
     res.status(code).json({ message: error.message });
+  }
+};
+
+export const patchChidinhKetQua = async (req, res) => {
+  try {
+    const row = await ExaminationService.saveChidinhKetQua({
+      machidinh: req.params.id,
+      ...req.body,
+    });
+    res.json(row);
+  } catch (error) {
+    const code = error.message.includes("Không tìm") ? 404 : 400;
+    res.status(code).json({ message: error.message });
+  }
+};
+
+export const getChidinhByPhong = async (req, res) => {
+  try {
+    const data = await ExaminationService.listChidinhByPhong(req.params.maphong);
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+export const patchChidinhDangThucHien = async (req, res) => {
+  try {
+    const row = await ExaminationService.markChidinhDangThucHien(req.params.id);
+    res.json(row);
+  } catch (error) {
+    const code = error.message.includes("Không tìm") ? 404 : 400;
+    res.status(code).json({ message: error.message });
+  }
+};
+
+export const postStartCls = async (req, res) => {
+  try {
+    const data = await ExaminationService.startChidinhExecution(req.body);
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
   }
 };
 

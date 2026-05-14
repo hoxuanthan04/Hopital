@@ -1,71 +1,117 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import LuotKhamService from '../../services/LuotKhamService';
+import PhongKhamService from '../../services/phongkham.service';
 
-interface Patient {
-  name: string;
-  age: number;
+const MACHINE_STORAGE_KEY = 'tth_mamayphong';
+
+type PhongRow = {
+  maphong: number;
+  tenphong?: string | null;
+  tenchuyenkhoa?: string | null;
+  mamayphong?: string | null;
+};
+
+type QueuePatient = {
+  maluotkham: number;
+  hoten?: string | null;
+  namsinh?: number | null;
+  trangthai?: string | null;
+  /** Thứ tự gọi trong phòng (FIFO) do API trả về. */
+  stt_trong_phong?: number | null;
+};
+
+function getResolvedMachineCode(): string | null {
+  const fromQuery = new URLSearchParams(window.location.search).get('mamay');
+  if (fromQuery && fromQuery.trim()) return fromQuery.trim();
+  const fromStorage = localStorage.getItem(MACHINE_STORAGE_KEY);
+  if (fromStorage && fromStorage.trim()) return fromStorage.trim();
+  return null;
 }
 
 const GoiSo: React.FC = () => {
-  const [queue, setQueue] = useState<any[]>([]);
-  const [currentNumber, setCurrentNumber] = useState<string | number>("--");
-  const [roomName] = useState<string>("Phòng Nội tổng quát"); // Có thể lấy từ ID phòng 11
-  const currentRoomId = 11;
+  const [room, setRoom] = useState<PhongRow | null>(null);
+  const [roomError, setRoomError] = useState<string | null>(null);
+  const [queue, setQueue] = useState<QueuePatient[]>([]);
+  const [currentNumber, setCurrentNumber] = useState<string | number>('--');
 
-  const fetchQueue = async () => {
-    try {
-      const data = await LuotKhamService.getByPhong(currentRoomId);
-      if (data && Array.isArray(data)) {
-        setQueue(data);
-        
-        // Tìm bệnh nhân có trạng thái "Đang khám" để hiển thị số lớn
-        const currentPatient = data.find((p: any) => p.trangthai === 'Đang khám');
-        if (currentPatient) {
-          // Lấy mã lượt khám (ví dụ lấy 3-4 số cuối) làm số thứ tự
-          setCurrentNumber(currentPatient.maluotkham);
-        } else {
-          setCurrentNumber("--");
-        }
-      }
-    } catch (error) {
-      console.error("Lỗi khi cập nhật màn hình gọi số:", error);
+  const resolveRoom = useCallback(async () => {
+    const code = getResolvedMachineCode();
+    if (!code) {
+      setRoomError('Chưa cấu hình mã máy phòng (mamayphong) cho màn hình gọi số.');
+      return;
     }
-  };
+    try {
+      const phong = (await PhongKhamService.getByMachineCode(code)) as PhongRow;
+      if (!phong?.maphong) {
+        setRoomError('Không xác định được phòng theo mã máy đã cấu hình.');
+        return;
+      }
+      setRoom(phong);
+      setRoomError(null);
+    } catch (error) {
+      console.error('Không tải được thông tin phòng cho màn gọi số:', error);
+      setRoomError('Không tìm thấy phòng theo mã máy đã cấu hình.');
+    }
+  }, []);
 
   useEffect(() => {
+    resolveRoom();
+  }, [resolveRoom]);
+
+  const fetchQueue = useCallback(async () => {
+    if (!room?.maphong) return;
+    try {
+      const data = (await LuotKhamService.getByPhong(room.maphong)) as QueuePatient[];
+      const list = Array.isArray(data) ? data : [];
+      setQueue(list);
+
+      const current = list.find((p) => (p.trangthai || '').trim() === 'Đang khám');
+      if (current && current.stt_trong_phong != null) {
+        setCurrentNumber(current.stt_trong_phong);
+      } else {
+        setCurrentNumber('--');
+      }
+    } catch (error) {
+      console.error('Lỗi khi cập nhật màn hình gọi số:', error);
+    }
+  }, [room?.maphong]);
+
+  useEffect(() => {
+    if (!room?.maphong) return;
     fetchQueue();
-    // Cập nhật nhanh hơn (mỗi 5-10 giây) để màn hình gọi số phản ứng kịp thời
     const interval = setInterval(fetchQueue, 5000);
     return () => clearInterval(interval);
-  }, [currentRoomId]);
+  }, [room?.maphong, fetchQueue]);
 
-  // Lọc danh sách bệnh nhân đang ĐỢI để hiển thị ở cột phải (tối đa 9 người)
   const waitingPatients = queue
-    .filter((p: any) => p.trangthai === 'Chờ khám')
+    .filter((p) => (p.trangthai || '').trim() === 'Chờ khám')
     .slice(0, 9);
+
+  const roomName = room?.tenphong || 'Phòng khám';
 
   return (
     <div className="flex flex-col h-screen w-full bg-white overflow-hidden font-sans">
-      {/* 1. Header: Tên bệnh viện - GIỮ NGUYÊN */}
       <header className="bg-[#0084FF] py-6 shadow-sm">
         <h1 className="text-center text-4xl md:text-6xl font-extrabold text-white uppercase tracking-tight">
           Bệnh viện đa khoa abc Hà Tĩnh
         </h1>
       </header>
 
-      {/* 2. Body: Chia đôi màn hình - GIỮ NGUYÊN */}
       <main className="flex flex-1 overflow-hidden">
-        
-        {/* Cột trái: Hiển thị số lớn - DỮ LIỆU ĐỘNG */}
-        <section className="w-1/2 flex items-center justify-center border-r border-gray-300">
+        <section className="w-1/2 flex flex-col items-center justify-center border-r border-gray-300 px-6 text-center">
+          <p className="text-3xl md:text-4xl font-bold text-slate-500 uppercase tracking-wide mb-4">
+            Số thứ tự đang gọi
+          </p>
           <div className="animate-pulse-slow">
-            <span className="text-[25rem] md:text-[35rem] font-bold leading-none text-[#001A4D] select-none">
+            <span className="text-[18rem] md:text-[28rem] font-bold leading-none text-[#001A4D] select-none">
               {currentNumber}
             </span>
           </div>
+          {roomError && (
+            <p className="mt-8 text-2xl text-rose-500 font-medium">{roomError}</p>
+          )}
         </section>
 
-        {/* Cột phải: Danh sách bệnh nhân chờ - DỮ LIỆU ĐỘNG */}
         <section className="w-1/2 flex flex-col p-10 md:p-14 bg-white">
           <div className="mb-6">
             <h2 className="text-2xl md:text-3xl font-bold text-slate-600 uppercase">
@@ -75,16 +121,23 @@ const GoiSo: React.FC = () => {
 
           <div className="flex flex-col w-full space-y-4 mt-5">
             {waitingPatients.length > 0 ? (
-              waitingPatients.map((patient, index) => (
-                <div 
-                  key={index} 
-                  className="flex justify-between items-end border-b border-gray-100 pb-1"
+              waitingPatients.map((patient) => (
+                <div
+                  key={patient.maluotkham}
+                  className="flex justify-between items-center border-b border-gray-100 pb-2"
                 >
-                  <span className="text-xl text-slate-500 font-thin">
-                    {patient.hoten}
-                  </span>
+                  <div className="flex items-center gap-4">
+                    <span className="inline-flex items-center justify-center min-w-[3.5rem] h-12 px-3 rounded bg-[#E6F0FF] text-[#0084FF] text-2xl font-bold">
+                      {patient.stt_trong_phong ?? '--'}
+                    </span>
+                    <span className="text-xl text-slate-600 font-medium">
+                      {patient.hoten}
+                    </span>
+                  </div>
                   <span className="text-xl text-slate-400 font-thin">
-                    {new Date().getFullYear() - patient.namsinh} tuổi
+                    {patient.namsinh != null
+                      ? `${new Date().getFullYear() - Number(patient.namsinh)} tuổi`
+                      : ''}
                   </span>
                 </div>
               ))
@@ -97,7 +150,6 @@ const GoiSo: React.FC = () => {
         </section>
       </main>
 
-      {/* 3. Footer: Slogan nghệ thuật - GIỮ NGUYÊN */}
       <footer className="bg-[#0084FF] py-6 border-t border-gray-300">
         <div className="text-center">
           <p className="slogan-text text-4xl md:text-6xl text-white">
@@ -106,10 +158,9 @@ const GoiSo: React.FC = () => {
         </div>
       </footer>
 
-      {/* Nhúng font chữ nghệ thuật qua CSS Scope - GIỮ NGUYÊN */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');
-        
+
         .slogan-text {
           font-family: 'Dancing Script', cursive;
         }

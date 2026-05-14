@@ -244,32 +244,27 @@ const AddDoctorModal: React.FC<AddDoctorModalProps> = ({ isOpen, onClose, onSave
                 disabled={isReadOnly || uploadBusy}
                 onChange={handlePickImage}
               />
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-start">
                 {!isReadOnly && (
                   <button
                     type="button"
                     disabled={uploadBusy}
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded border border-slate-200 bg-slate-50 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60 shrink-0"
                   >
                     {uploadBusy ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
                     {uploadBusy ? 'Đang tải lên…' : 'Chọn ảnh & tải lên'}
                   </button>
                 )}
                 {formData.anh && (
-                  <img src={formData.anh} alt="" className="w-14 h-14 rounded-lg border object-cover bg-white shrink-0" />
+                  <img
+                    src={formData.anh}
+                    alt=""
+                    className="w-44 h-44 sm:w-52 sm:h-52 rounded-xl border-2 border-slate-200 object-cover bg-slate-50 shrink-0 shadow-sm"
+                  />
                 )}
               </div>
               {uploadErr && <p className="text-xs text-rose-600 font-medium">{uploadErr}</p>}
-              <p className="text-xs text-slate-500">Hoặc dán URL ảnh (tùy chọn):</p>
-              <input
-                name="anh"
-                disabled={isReadOnly}
-                value={formData.anh}
-                onChange={handleChange}
-                placeholder="https://res.cloudinary.com/..."
-                className="w-full px-4 py-3 border border-slate-100 rounded outline-none transition-all disabled:opacity-70"
-              />
             </div>
           </div>
 

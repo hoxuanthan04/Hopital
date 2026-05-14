@@ -43,6 +43,23 @@ interface NhanVienApiRow {
   anh?: string | null;
 }
 
+/** Chuẩn hóa ngày từ API → YYYY-MM-DD cho `<input type="date">`. */
+function apiNgaySinhToInputValue(raw: string | null | undefined): string {
+  if (raw == null || String(raw).trim() === '') return '';
+  const s = String(raw).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  return '';
+}
+
+/** Hiển thị dd/mm/yyyy trên bảng từ chuỗi YYYY-MM-DD. */
+function formatNgaySinhBang(yyyyMmDd: string): string {
+  if (!yyyyMmDd) return 'N/A';
+  const m = yyyyMmDd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return yyyyMmDd;
+  return `${Number(m[3])}/${Number(m[2])}/${m[1]}`;
+}
+
 const Doctors: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedSpecialty, setSelectedSpecialty] = useState('All');
@@ -66,7 +83,7 @@ const Doctors: React.FC = () => {
         chuyenkhoa: item.chuyenkhoa || 'Chưa xác định',
         gioitinh: item.gioitinh,
         hocham: item.hocham || '',
-        ngaysinh: item.ngaysinh ? new Date(item.ngaysinh).toLocaleDateString('vi-VN') : 'N/A', // Đổ ngày sinh vào cột experience cũ
+        ngaysinh: apiNgaySinhToInputValue(item.ngaysinh),
         sodienthoai: item.sdt ?? '',
         email: item.email,
         socccd: item.socccd ?? '',
@@ -234,7 +251,7 @@ const Doctors: React.FC = () => {
                   </td>
                   <td className="py-4 px-4 text-center text-slate-600 text-sm text-slate-500">
                     <div className="flex items-center justify-center gap-1">
-                       {doctor.ngaysinh}
+                       {formatNgaySinhBang(doctor.ngaysinh)}
                     </div>
                   </td>
                   <td className="py-4 px-4 text-center text-sm text-slate-500">
