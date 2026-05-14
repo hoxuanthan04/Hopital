@@ -6,11 +6,12 @@ import {
   Printer,
   Save,
   Search,
-  Users,
   Loader2,
   CheckCircle2,
+  FileSearch,
+  Download,
+  ClipboardCheck,
 } from 'lucide-react';
-import PatientListModal from '../../components/staff/PatientListModal';
 import MedicineSearchModal from '../../components/staff/MedicineSearchModal';
 import ExaminationService from '../../services/examination.service';
 import VattuService from '../../services/vattu.service';
@@ -34,7 +35,16 @@ type ChidinhRow = {
   trangthai?: string | null;
   tendichvu?: string | null;
   loaidichvu?: string | null;
+  maphong_thuchien?: number | null;
+  tenphong_thuchien?: string | null;
+  ketquahinhanh?: string | null;
+  dicom_url?: string | null;
+  dicom_tenfile?: string | null;
+  ngaythuchien?: string | null;
 };
+
+const TRANGTHAI_DANG_CLS = 'Đang thực hiện CLS';
+const TRANGTHAI_CHO_KET_LUAN = 'Chờ kết luận';
 
 type SessionPayload = {
   luotkham: Record<string, unknown>;
@@ -73,7 +83,6 @@ export default function Examination() {
   const patientData = (location.state?.patient ?? null) as PatientState | null;
 
   const [activeTabCLS, setActiveTabCLS] = useState<TabId>('XetNghiem');
-  const [showPatientList, setShowPatientList] = useState(false);
   const [showAddMedicine, setShowAddMedicine] = useState(false);
 
   const [session, setSession] = useState<SessionPayload | null>(null);
@@ -146,7 +155,47 @@ export default function Examination() {
     return chidinhList.every((c) => (c.trangthai || '').trim() === 'Đã hoàn thành');
   }, [chidinhList]);
 
-  const canComplete = clsAllDone && ketluan.trim().length > 0;
+  const luotTrangThai = useMemo(() => {
+    const luot = session?.luotkham as Record<string, unknown> | undefined;
+    return String(luot?.trangthai ?? '').trim();
+  }, [session]);
+
+  const hosoTrangThai = useMemo(() => {
+    const h = session?.hosokhambenh as Record<string, unknown> | undefined;
+    return String(h?.trangthai ?? '').trim();
+  }, [session]);
+
+  const formLocked = useMemo(() => {
+    if (!session) return false;
+    if (luotTrangThai === 'Hoàn thành') return true;
+    return hosoTrangThai === 'Chờ thanh toán' || hosoTrangThai === 'Đã hoàn tất';
+  }, [session, luotTrangThai, hosoTrangThai]);
+
+  const isExecutingCls = hosoTrangThai === TRANGTHAI_DANG_CLS;
+  const isChoKetLuan = hosoTrangThai === TRANGTHAI_CHO_KET_LUAN;
+  /**
+   * Khóa thêm / xóa chỉ định khi đã chuyển sang giai đoạn thực hiện CLS.
+   * Ở trạng thái «Chờ kết luận» vẫn cho phép bác sĩ bổ sung CLS — backend sẽ tự
+   * đưa hồ sơ + lượt khám về lại «Đang thực hiện CLS» khi có chỉ định mới.
+   */
+  const clsLocked = formLocked || isExecutingCls;
+
+  const canStartCls = useMemo(() => {
+    if (formLocked || isExecutingCls || isChoKetLuan) return false;
+    return chidinhList.length > 0;
+  }, [formLocked, isExecutingCls, isChoKetLuan, chidinhList.length]);
+
+  /**
+   * «Hoàn tất khám» chỉ khả dụng khi:
+   *  - Không có CLS (state vẫn 'Đang khám') → khám trực tiếp,
+   *  - Hoặc đã sang 'Chờ kết luận' (mọi CLS done).
+   */
+  const canComplete =
+    clsAllDone &&
+    ketluan.trim().length > 0 &&
+    !formLocked &&
+    !isExecutingCls &&
+    (chidinhList.length === 0 || isChoKetLuan);
 
   const bacsId = useMemo(() => {
     try {
@@ -158,6 +207,7 @@ export default function Examination() {
   }, []);
 
   const handleAddChidinh = async (madichvu: number) => {
+    if (clsLocked) return;
     if (!mahosokham || !patientData?.maluotkham) return;
     setActionLoading(true);
     try {
@@ -180,6 +230,7 @@ export default function Examination() {
   };
 
   const handleRemoveChidinh = async (machidinh: number) => {
+    if (formLocked) return;
     if (!window.confirm('Xóa chỉ định này?')) return;
     setActionLoading(true);
     try {
@@ -197,6 +248,7 @@ export default function Examination() {
   };
 
   const handleMarkClsDone = async (machidinh: number) => {
+    if (formLocked) return;
     setActionLoading(true);
     try {
       await ExaminationService.markChidinhHoanThanh(machidinh);
@@ -212,7 +264,41 @@ export default function Examination() {
     }
   };
 
+  const handleStartCls = async () => {
+    if (!canStartCls) return;
+    if (!mahosokham || !patientData?.maluotkham) return;
+    if (
+      !window.confirm(
+        'Chuyển sang giai đoạn thực hiện CLS? Sau khi xác nhận sẽ không thể thêm / xóa chỉ định, chờ các phòng CLS trả kết quả.'
+      )
+    ) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = (await ExaminationService.startChidinhExecution({
+        mahosokham,
+        maluotkham: patientData.maluotkham,
+      })) as { trangthai?: string };
+      await loadSession();
+      window.alert(
+        res?.trangthai === TRANGTHAI_CHO_KET_LUAN
+          ? 'Tất cả CLS đã có kết quả. Chuyển sang chờ kết luận của bác sĩ.'
+          : 'Đã chuyển trạng thái sang Đang thực hiện CLS. Hệ thống sẽ tự chuyển sang Chờ kết luận khi mọi CLS có kết quả.'
+      );
+    } catch (e: unknown) {
+      const msg =
+        typeof e === 'object' && e !== null && 'response' in e
+          ? (e as { response?: { data?: { message?: string } } }).response?.data?.message
+          : null;
+      window.alert(msg || 'Không thể chuyển trạng thái.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleAddMedicine = (newMed: Omit<RxLine, 'key'>) => {
+    if (formLocked) return;
     if (prescriptions.some((p) => p.mavattu === newMed.mavattu)) {
       window.alert('Thuốc này đã có trong đơn.');
       setShowAddMedicine(false);
@@ -226,10 +312,12 @@ export default function Examination() {
   };
 
   const handleDeleteMedicine = (key: string) => {
+    if (formLocked) return;
     setPrescriptions((prev) => prev.filter((p) => p.key !== key));
   };
 
   const updateRx = (key: string, patch: Partial<RxLine>) => {
+    if (formLocked) return;
     setPrescriptions((prev) => prev.map((p) => (p.key === key ? { ...p, ...patch } : p)));
   };
 
@@ -278,7 +366,7 @@ export default function Examination() {
   if (!patientData) {
     return (
       <div className="h-[calc(100vh-120px)] flex flex-col items-center justify-center bg-white border rounded">
-        <Users size={48} className="text-slate-300 mb-4" />
+        <Search size={48} className="text-slate-300 mb-4" />
         <p className="text-slate-500 font-medium">Chưa chọn bệnh nhân khám.</p>
         <button type="button" onClick={() => navigate('/staff/patientqueue')} className="mt-4 text-blue-600 font-bold underline">
           Quay lại danh sách chờ
@@ -289,17 +377,6 @@ export default function Examination() {
 
   const tuoi =
     patientData.namsinh != null ? new Date().getFullYear() - Number(patientData.namsinh) : '—';
-
-  const patientQueue = [
-    {
-      stt: 1,
-      ma: patientData?.maluotkham ?? '...',
-      ten: patientData?.hoten ?? '...',
-      ns: patientData?.namsinh ?? '...',
-      gt: patientData?.gioitinh ?? '...',
-      tt: 'Đang khám',
-    },
-  ];
 
   return (
     <div className="bg-slate-50">
@@ -335,32 +412,66 @@ export default function Examination() {
             </button>
             <button
               type="button"
+              onClick={handleStartCls}
+              disabled={!canStartCls || actionLoading || sessionLoading || !mahosokham}
+              title={
+                chidinhList.length === 0
+                  ? 'Chưa có chỉ định CLS nào'
+                  : isExecutingCls
+                    ? 'Đang chờ các phòng CLS trả kết quả'
+                    : isChoKetLuan
+                      ? 'CLS đã có đủ kết quả, sẵn sàng kết luận'
+                      : 'Chuyển sang giai đoạn thực hiện CLS'
+              }
+              className="flex items-center gap-2 px-6 py-2 bg-amber-600 text-white rounded font-bold hover:bg-amber-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {actionLoading ? <Loader2 className="animate-spin" size={18} /> : <ClipboardCheck size={18} />}
+              Hoàn tất chỉ định CLS
+            </button>
+            <button
+              type="button"
               onClick={handleComplete}
-              disabled={!canComplete || actionLoading || sessionLoading || !mahosokham}
+              disabled={!canComplete || actionLoading || sessionLoading || !mahosokham || formLocked}
               title={
                 !ketluan.trim()
                   ? 'Thiếu chẩn đoán xác định'
-                  : !clsAllDone
-                    ? 'Còn CLS chưa hoàn thành'
-                    : 'Lưu hồ sơ và kết thúc lượt khám'
+                  : isExecutingCls
+                    ? 'Chờ phòng CLS trả kết quả trước khi kết luận'
+                    : !clsAllDone
+                      ? 'Còn CLS chưa hoàn thành'
+                      : 'Lưu hồ sơ và kết thúc lượt khám'
               }
               className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded font-bold hover:bg-blue-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed text-sm"
             >
               {actionLoading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
               Hoàn tất khám
             </button>
-            <button
-              type="button"
-              onClick={() => setShowPatientList(true)}
-              className="flex items-center gap-2 px-6 py-2 bg-blue-500 text-white rounded font-bold hover:bg-blue-600 shadow-md text-sm"
-            >
-              <Users size={18} /> Hàng đợi
-            </button>
           </div>
         </div>
 
         {sessionError && (
           <div className="mx-4 mt-3 rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">{sessionError}</div>
+        )}
+
+        {formLocked && !sessionLoading && session && (
+          <div className="mx-4 mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Lượt khám / hồ sơ đã hoàn tất khám. Chỉ xem thông tin; không thể chỉnh sửa hay hoàn tất lại.
+          </div>
+        )}
+
+        {!formLocked && isExecutingCls && !sessionLoading && (
+          <div className="mx-4 mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 flex items-center gap-2">
+            <Loader2 className="animate-spin" size={16} />
+            Đang chờ các phòng CLS trả kết quả. Khi tất cả chỉ định có kết quả, hệ thống sẽ tự chuyển sang
+            <strong className="font-bold"> Chờ kết luận</strong>.
+          </div>
+        )}
+
+        {!formLocked && isChoKetLuan && !sessionLoading && (
+          <div className="mx-4 mt-3 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            Tất cả CLS đã có kết quả. Mời bác sĩ nhập <strong>chẩn đoán xác định</strong> và bấm
+            <strong> Hoàn tất khám</strong>.
+          </div>
         )}
 
         <div className="flex-1 overflow-hidden flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-slate-100 min-h-0">
@@ -404,6 +515,7 @@ export default function Examination() {
                           className="w-full p-3 border border-slate-200 rounded outline-none focus:ring-1 focus:ring-blue-500 text-sm"
                           placeholder="Nhập chẩn đoán sơ bộ…"
                           value={chandoansobo}
+                          readOnly={formLocked}
                           onChange={(e) => setChandoansobo(e.target.value)}
                         />
                       </div>
@@ -413,6 +525,7 @@ export default function Examination() {
                           className="w-full p-3 border border-blue-100 rounded outline-none text-blue-800 font-medium focus:ring-1 focus:ring-blue-500 text-sm"
                           placeholder="Bắt buộc để hoàn tất khám…"
                           value={ketluan}
+                          readOnly={formLocked}
                           onChange={(e) => setKetluan(e.target.value)}
                         />
                       </div>
@@ -421,7 +534,7 @@ export default function Examination() {
                 </div>
 
                 <div className="space-y-3 pt-2">
-                  <h3 className="text-sm font-bold text-slate-600 tracking-wider uppercase">Chỉ định CLS & trạng thái</h3>
+                  <h3 className="text-sm font-bold text-slate-600 tracking-wider uppercase">Chỉ định CLS & kết quả</h3>
                   {chidinhList.length === 0 ? (
                     <p className="text-sm text-slate-500 italic border border-dashed border-slate-200 rounded p-4">
                       Chưa có chỉ định cận lâm sàng. Thêm từ cột bên phải.
@@ -430,50 +543,103 @@ export default function Examination() {
                     <ul className="space-y-2">
                       {chidinhList.map((c) => {
                         const done = (c.trangthai || '').trim() === 'Đã hoàn thành';
+                        const ngayKQ = c.ngaythuchien
+                          ? new Date(c.ngaythuchien).toLocaleString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                            })
+                          : null;
                         return (
                           <li
                             key={c.machidinh}
-                            className={`p-3 rounded border flex flex-wrap items-center justify-between gap-2 text-sm ${
+                            className={`p-3 rounded border text-sm space-y-2 ${
                               done ? 'border-emerald-100 bg-emerald-50/50' : 'border-amber-100 bg-amber-50/40'
                             }`}
                           >
-                            <div className="min-w-0">
-                              <p className="font-bold text-slate-800">{c.tendichvu || `DV #${c.madichvu}`}</p>
-                              <p className="text-xs text-slate-500">{c.loaidichvu || '—'} · {c.trangthai || 'Chờ'}</p>
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800">{c.tendichvu || `DV #${c.madichvu}`}</p>
+                                <p className="text-xs text-slate-500">
+                                  {c.loaidichvu || '—'} · {c.trangthai || 'Chờ'}
+                                </p>
+                                {c.tenphong_thuchien && (
+                                  <p className="text-xs text-blue-600 mt-1">
+                                    Đã phân về: <span className="font-medium">{c.tenphong_thuchien}</span>
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {done ? (
+                                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
+                                    <CheckCircle2 size={16} /> Đã hoàn thành
+                                  </span>
+                                ) : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMarkClsDone(c.machidinh)}
+                                      disabled={actionLoading || clsLocked}
+                                      className="text-xs font-bold px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
+                                    >
+                                      Hoàn thành CLS
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveChidinh(c.machidinh)}
+                                      disabled={actionLoading || clsLocked}
+                                      className="text-xs font-bold px-2 py-1.5 rounded border border-slate-200 text-rose-600 hover:bg-rose-50 disabled:opacity-40"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {done ? (
-                                <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
-                                  <CheckCircle2 size={16} /> Đã hoàn thành
-                                </span>
-                              ) : (
-                                <>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMarkClsDone(c.machidinh)}
-                                    disabled={actionLoading}
-                                    className="text-xs font-bold px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                            {done && (c.ketquahinhanh || c.dicom_url) && (
+                              <div className="bg-white border border-emerald-100 rounded p-3 space-y-2">
+                                <div className="flex items-center gap-2 text-emerald-700 text-xs font-bold uppercase">
+                                  <FileSearch size={14} /> Kết quả cận lâm sàng
+                                  {ngayKQ && (
+                                    <span className="ml-auto text-[11px] text-slate-500 font-medium normal-case">
+                                      {ngayKQ}
+                                    </span>
+                                  )}
+                                </div>
+                                {c.ketquahinhanh && (
+                                  <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                    {c.ketquahinhanh}
+                                  </p>
+                                )}
+                                {c.dicom_url && (
+                                  <a
+                                    href={c.dicom_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline"
                                   >
-                                    Hoàn thành CLS
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveChidinh(c.machidinh)}
-                                    disabled={actionLoading}
-                                    className="text-xs font-bold px-2 py-1.5 rounded border border-slate-200 text-rose-600 hover:bg-rose-50"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </>
-                              )}
-                            </div>
+                                    <Download size={14} />
+                                    {c.dicom_tenfile || 'Tải file DICOM'}
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                            {done && !c.ketquahinhanh && !c.dicom_url && (
+                              <p className="text-xs text-slate-500 italic">
+                                Chưa có mô tả kết quả / file đính kèm cho chỉ định này.
+                              </p>
+                            )}
                           </li>
                         );
                       })}
                     </ul>
                   )}
-                  {!clsAllDone && chidinhList.length > 0 && (
-                    <p className="text-xs text-amber-800 font-medium">Hoàn tất khám chỉ khả dụng khi mọi chỉ định CLS đã hoàn thành.</p>
+                  {chidinhList.length > 0 && !clsAllDone && !isExecutingCls && (
+                    <p className="text-xs text-amber-800 font-medium">
+                      Bấm <strong>Hoàn tất chỉ định CLS</strong> để chuyển sang giai đoạn thực hiện.
+                    </p>
                   )}
                 </div>
               </>
@@ -509,7 +675,7 @@ export default function Examination() {
                       <button
                         key={item.madichvu}
                         type="button"
-                        disabled={actionLoading || !mahosokham}
+                        disabled={actionLoading || !mahosokham || clsLocked}
                         onClick={() => handleAddChidinh(item.madichvu)}
                         className="text-left px-3 py-2 text-xs border border-slate-100 hover:border-blue-400 hover:bg-blue-50 transition-all flex justify-between items-center gap-1 group disabled:opacity-50"
                       >
@@ -527,8 +693,9 @@ export default function Examination() {
                 <h3 className="text-sm font-bold text-slate-600 tracking-wider uppercase">Đơn thuốc điều trị</h3>
                 <button
                   type="button"
-                  onClick={() => setShowAddMedicine(true)}
-                  className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:underline"
+                  onClick={() => !formLocked && setShowAddMedicine(true)}
+                  disabled={formLocked}
+                  className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:underline disabled:opacity-40 disabled:no-underline"
                 >
                   <Search size={14} /> Thêm thuốc
                 </button>
@@ -546,7 +713,8 @@ export default function Examination() {
                         <button
                           type="button"
                           onClick={() => handleDeleteMedicine(item.key)}
-                          className="text-rose-500 hover:bg-rose-50 rounded p-1"
+                          disabled={formLocked}
+                          className="text-rose-500 hover:bg-rose-50 rounded p-1 disabled:opacity-30"
                           title="Xóa"
                         >
                           <Trash2 size={14} />
@@ -558,6 +726,7 @@ export default function Examination() {
                           <input
                             type="number"
                             min={1}
+                            readOnly={formLocked}
                             className="border border-slate-200 rounded px-2 py-1"
                             value={item.sl}
                             onChange={(e) => updateRx(item.key, { sl: Math.max(1, Number(e.target.value) || 1) })}
@@ -566,6 +735,7 @@ export default function Examination() {
                         <label className="col-span-1 flex flex-col gap-0.5">
                           <span className="text-slate-400 font-bold">Đơn vị</span>
                           <input
+                            readOnly={formLocked}
                             className="border border-slate-200 rounded px-2 py-1"
                             value={item.dv}
                             onChange={(e) => updateRx(item.key, { dv: e.target.value })}
@@ -574,6 +744,7 @@ export default function Examination() {
                         <label className="col-span-2 flex flex-col gap-0.5">
                           <span className="text-slate-400 font-bold">Liều dùng</span>
                           <input
+                            readOnly={formLocked}
                             className="border border-slate-200 rounded px-2 py-1"
                             value={item.lieudung}
                             onChange={(e) => updateRx(item.key, { lieudung: e.target.value })}
@@ -583,6 +754,7 @@ export default function Examination() {
                         <label className="col-span-2 flex flex-col gap-0.5">
                           <span className="text-slate-400 font-bold">Cách dùng</span>
                           <input
+                            readOnly={formLocked}
                             className="border border-slate-200 rounded px-2 py-1"
                             value={item.cachdung}
                             onChange={(e) => updateRx(item.key, { cachdung: e.target.value })}
@@ -597,8 +769,6 @@ export default function Examination() {
           </div>
         </div>
       </div>
-
-      <PatientListModal isOpen={showPatientList} onClose={() => setShowPatientList(false)} patientQueue={patientQueue} />
 
       <MedicineSearchModal
         isOpen={showAddMedicine}

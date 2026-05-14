@@ -22,6 +22,8 @@ type QueuePatient = {
   ngaykham?: string;
   trangthai?: string | null;
   maphong?: number | null;
+  /** Thứ tự khám trong phòng (FIFO), từ API */
+  stt_trong_phong?: number | null;
 };
 
 /** Thứ tự ưu tiên: query ?mamay= → localStorage → biến môi trường Vite */
@@ -37,6 +39,24 @@ function getResolvedMachineCode(): string | null {
 
   return null;
 }
+
+/** Bỏ dấu + đưa về chữ thường để so khớp tên khoa. */
+function normalizeDeptName(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'd')
+    .toLowerCase()
+    .trim();
+}
+
+function isDiagnosticImagingRoom(room: { tenchuyenkhoa?: string | null } | null) {
+  return normalizeDeptName(room?.tenchuyenkhoa).includes('chan doan hinh anh');
+}
+
+const MSG_LUOT_CHUA_HOAN_TAT =
+  'Bạn đang có lượt khám chưa hoàn thành. Vui lòng hoàn tất để bắt đầu lượt khám mới.';
 
 const PatientQueue = () => {
   const navigate = useNavigate();
@@ -63,6 +83,13 @@ const PatientQueue = () => {
       const phong = (await PhongKhamService.getByMachineCode(code)) as PhongRow;
       if (!phong?.maphong) {
         setRoomError('Phòng trả về không có mã phòng (maphong).');
+        setLoading(false);
+        return;
+      }
+      if (isDiagnosticImagingRoom(phong)) {
+        setRoomError(
+          `Phòng "${phong.tenphong || '—'}" thuộc khoa "${phong.tenchuyenkhoa || '—'}". Trang Khám bệnh chỉ dành cho phòng khám lâm sàng. Vui lòng mở trang Chẩn đoán hình ảnh.`
+        );
         setLoading(false);
         return;
       }
@@ -112,20 +139,48 @@ const PatientQueue = () => {
   };
 
   const handleInvite = async (patient: QueuePatient) => {
-    console.log('Nút mời đã bấm cho:', patient.hoten);
-    navigate('/staff/examination', {
-      state: {
-        patient: { ...patient, trangthai: 'Đang khám' },
-      },
-    });
+    const tt = (patient.trangthai || '').trim();
+    if (tt === 'Hoàn thành' || tt === 'Đã hủy') {
+      window.alert(tt === 'Đã hủy' ? 'Lượt khám đã hủy, không thể mời vào phòng khám.' : 'Lượt khám đã hoàn thành, không thể mời vào phòng khám.');
+      return;
+    }
+
+    // Nếu lượt khám đang trong giai đoạn khám (Đang khám / Đang thực hiện CLS / Chờ kết luận)
+    // thì bác sĩ chỉ cần quay lại phiên khám hiện tại, không cần đổi trạng thái.
+    const inSession =
+      tt === 'Đang khám' || tt === 'Đang thực hiện CLS' || tt === 'Chờ kết luận';
+    if (inSession) {
+      navigate('/staff/examination', {
+        state: {
+          patient: { ...patient },
+        },
+      });
+      return;
+    }
+
+    const otherDangKham = queue.find(
+      (p) => (p.trangthai || '').trim() === 'Đang khám' && p.maluotkham !== patient.maluotkham
+    );
+    if (otherDangKham) {
+      window.alert(MSG_LUOT_CHUA_HOAN_TAT);
+      return;
+    }
     try {
       await LuotKhamService.update(patient.maluotkham, {
         ...patient,
         trangthai: 'Đang khám',
       });
-      console.log('Cập nhật trạng thái thành công');
-    } catch (error) {
-      console.error('Lỗi cập nhật DB:', error);
+      navigate('/staff/examination', {
+        state: {
+          patient: { ...patient, trangthai: 'Đang khám' },
+        },
+      });
+    } catch (error: unknown) {
+      const msg =
+        typeof error === 'object' && error !== null && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : null;
+      window.alert(msg || 'Không thể cập nhật trạng thái lượt khám (có thể đã hoàn thành).');
     }
   };
 
@@ -223,7 +278,7 @@ const PatientQueue = () => {
             <div className="bg-white p-4 rounded border border-slate-200 shadow-sm">
               <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Tổng số chờ</p>
               <h2 className=" font-bold text-slate-800 mt-1">
-                {queue.filter((p) => p.trangthai === 'Đang đợi').length} bệnh nhân
+                {queue.filter((p) => (p.trangthai || '').trim() !== 'Đang khám').length} bệnh nhân
               </h2>
             </div>
             <div className="relative">
@@ -244,7 +299,7 @@ const PatientQueue = () => {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">STT</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">STT khám</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Mã BN</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Họ và Tên</th>
                   <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-center">Năm sinh</th>
@@ -260,7 +315,9 @@ const PatientQueue = () => {
                     className={`hover:bg-slate-50 transition-colors ${patient.trangthai === 'Đang khám' ? 'bg-blue-50/50' : ''}`}
                   >
                     <td className="px-6 py-4">
-                      <span className="w-8 h-8 flex items-center justify-center font-bold text-sm">{index + 1}</span>
+                      <span className="w-8 h-8 flex items-center justify-center font-bold text-sm">
+                        {patient.stt_trong_phong != null ? patient.stt_trong_phong : index + 1}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-600">#{patient.maluotkham}</td>
                     <td className="px-6 py-4 text-slate-800">{patient.hoten}</td>
@@ -274,13 +331,29 @@ const PatientQueue = () => {
                       <span className="px-3 py-1 text-sm">{patient.trangthai}</span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleInvite(patient)}
-                        className="inline-flex items-center gap-1 text-blue-600 text-sm hover:underline font-bold"
-                      >
-                        Mời vào <ArrowRight size={16} />
-                      </button>
+                      {(() => {
+                        const tt = (patient.trangthai || '').trim();
+                        const closed = tt === 'Hoàn thành' || tt === 'Đã hủy';
+                        const inSession =
+                          tt === 'Đang khám' || tt === 'Đang thực hiện CLS' || tt === 'Chờ kết luận';
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => handleInvite(patient)}
+                            disabled={closed}
+                            title={
+                              closed
+                                ? 'Lượt khám đã kết thúc'
+                                : inSession
+                                  ? 'Quay lại phiên khám đang diễn ra'
+                                  : 'Mời vào phòng khám'
+                            }
+                            className="inline-flex items-center gap-1 text-blue-600 text-sm hover:underline font-bold disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                          >
+                            {inSession ? 'Tiếp tục khám' : 'Mời vào'} <ArrowRight size={16} />
+                          </button>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}

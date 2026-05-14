@@ -26,6 +26,26 @@ const ExaminationService = {
     return res.data;
   },
 
+  markChidinhDangThucHien: async (machidinh) => {
+    const res = await axios.patch(`${API}/chidinh/${machidinh}/dangthuchien`);
+    return res.data;
+  },
+
+  listChidinhByPhong: async (maphong) => {
+    const res = await axios.get(`${API}/chidinh/phong/${maphong}`);
+    return res.data;
+  },
+
+  saveChidinhKetQua: async (machidinh, body) => {
+    const res = await axios.patch(`${API}/chidinh/${machidinh}/ketqua`, body);
+    return res.data;
+  },
+
+  startChidinhExecution: async (body) => {
+    const res = await axios.post(`${API}/start-cls`, body);
+    return res.data;
+  },
+
   complete: async (body) => {
     const res = await axios.post(`${API}/complete`, body);
     return res.data;

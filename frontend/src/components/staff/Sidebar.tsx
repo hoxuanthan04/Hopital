@@ -6,6 +6,7 @@ import {
   HandCoins,
   CalendarCheck2, 
   Eye, 
+  ScanLine,
   Settings, 
   LogOut,
   DoorOpen
@@ -21,6 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen }) => {
   const menuItems = [
     { name: 'Trang chủ', path: '/staff/home', icon: LayoutDashboard },
     { name: 'Khám bệnh', path: '/staff/patientqueue', icon: Eye },
+    { name: 'Chẩn đoán hình ảnh', path: '/staff/diagnostic-imaging', icon: ScanLine },
     { name: 'Tiếp nhận', path: '/staff/registerexamination', icon: DoorOpen },
     { name: 'Lịch khám', path: '/staff/appointmentsmanager', icon: BookCheck },
     { name: 'Thanh toán', path: '/staff/invoicemanagement', icon: HandCoins },

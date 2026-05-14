@@ -18,6 +18,12 @@ import {
   Send,
   MapPin,
   Share2,
+  Bell,
+  RefreshCw,
+  RotateCcw,
+  Eye,
+  EyeOff,
+  Users,
 } from 'lucide-react';
 import type {
   ApiIntegrationsSettings,
@@ -271,11 +277,14 @@ const SettingsPage = () => {
       created_at: string;
       so_nguoi_nhan: number;
       so_da_doc: number;
+      nguoi_tao?: number | null;
     }[]
   >([]);
   const [tbHistoryLoading, setTbHistoryLoading] = useState(false);
   const [tbSubmitting, setTbSubmitting] = useState(false);
   const [tbErr, setTbErr] = useState<string | null>(null);
+  const [tbOk, setTbOk] = useState<string | null>(null);
+  const [tbExpandedId, setTbExpandedId] = useState<number | null>(null);
 
   const tbRoleOptions = useMemo(() => {
     const s = new Set<string>(['Admin', 'Staff', 'Bác sĩ', 'Doctor', 'client']);
@@ -295,6 +304,44 @@ const SettingsPage = () => {
         String(a.mataikhoan).includes(q)
     );
   }, [tbAccounts, tbAccountSearch]);
+
+  const tbRecipientPreview = useMemo(() => {
+    if (tbLoai === 'tat_ca') {
+      const n = tbAccounts.filter((a) => (a.trangthai || '').trim() === 'Hoạt động').length;
+      return `Ước tính: ~${n} tài khoản đang hoạt động (toàn hệ thống).`;
+    }
+    if (tbLoai === 'vai_tro') {
+      if (!tbVaiTro.length) return 'Chọn ít nhất một vai trò để xem ước tính người nhận.';
+      const n = tbAccounts.filter(
+        (a) => tbVaiTro.includes(a.loaitaikhoan) && (a.trangthai || '').trim() === 'Hoạt động'
+      ).length;
+      return `Ước tính: ${n} tài khoản khớp vai trò đã chọn (đang hoạt động).`;
+    }
+    return tbChonIds.length ? `Đã chọn: ${tbChonIds.length} tài khoản.` : 'Chưa chọn tài khoản nào.';
+  }, [tbLoai, tbVaiTro, tbChonIds, tbAccounts]);
+
+  useEffect(() => {
+    if (!tbOk) return;
+    const t = window.setTimeout(() => setTbOk(null), 4500);
+    return () => window.clearTimeout(t);
+  }, [tbOk]);
+
+  const resetThongBaoForm = useCallback(() => {
+    setTbTitle('');
+    setTbBody('');
+    setTbLoai('tat_ca');
+    setTbVaiTro([]);
+    setTbChonIds([]);
+    setTbAccountSearch('');
+    setTbErr(null);
+  }, []);
+
+  const selectAllTbFiltered = useCallback(() => {
+    const ids = tbFilteredAccounts.map((a) => a.mataikhoan);
+    setTbChonIds(Array.from(new Set([...tbChonIds, ...ids])));
+  }, [tbFilteredAccounts, tbChonIds]);
+
+  const clearTbChonIds = useCallback(() => setTbChonIds([]), []);
 
   const formatTbTime = (iso: string) => {
     try {
@@ -376,12 +423,13 @@ const SettingsPage = () => {
     setTbSubmitting(true);
     try {
       await ThongBaoApi.createThongBao({ tieu_de, noi_dung, doi_tuong });
-      window.alert('Đã gửi thông báo.');
+      setTbOk('Đã gửi thông báo thành công. Các tài khoản nhận sẽ thấy tin trong biểu tượng chuông.');
       setTbTitle('');
       setTbBody('');
       setTbLoai('tat_ca');
       setTbVaiTro([]);
       setTbChonIds([]);
+      setTbExpandedId(null);
       await loadThongBaoTab();
       window.dispatchEvent(new CustomEvent('thongbao:updated'));
     } catch (e: unknown) {
@@ -489,73 +537,6 @@ const SettingsPage = () => {
             Không có hồ sơ nhân viên liên kết hoặc không tải được dữ liệu — các ô liên hệ từ hệ thống sẽ trống.
           </p>
         )}
-      </SettingsRow>
-
-      <SettingsRow
-        title="Thông tin liên hệ"
-        desc="Lưu cục bộ trên trình duyệt; có thể đồng bộ server sau. Bổ sung địa chỉ và kênh liên hệ khác."
-      >
-        <FieldIcon icon={User}>
-          <input
-            type="text"
-            value={profile.hoten}
-            onChange={(e) => setProfile((p) => ({ ...p, hoten: e.target.value }))}
-            placeholder="Họ và tên hiển thị"
-            className={inputBase}
-          />
-        </FieldIcon>
-        <FieldIcon icon={Mail}>
-          <input
-            type="email"
-            value={profile.email}
-            onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
-            placeholder="Email"
-            className={inputBase}
-          />
-        </FieldIcon>
-        <FieldIcon icon={Phone}>
-          <input
-            type="tel"
-            value={profile.sodienthoai}
-            onChange={(e) => setProfile((p) => ({ ...p, sodienthoai: e.target.value }))}
-            placeholder="Số điện thoại"
-            className={inputBase}
-          />
-        </FieldIcon>
-        <FieldIcon icon={MapPin}>
-          <input
-            type="text"
-            value={profile.diaChi}
-            onChange={(e) => setProfile((p) => ({ ...p, diaChi: e.target.value }))}
-            placeholder="Địa chỉ liên hệ"
-            className={inputBase}
-          />
-        </FieldIcon>
-        <FieldIcon icon={Share2}>
-          <input
-            type="text"
-            value={profile.lienHePhu}
-            onChange={(e) => setProfile((p) => ({ ...p, lienHePhu: e.target.value }))}
-            placeholder="Zalo, Skype, Facebook… (tuỳ chọn)"
-            className={inputBase}
-          />
-        </FieldIcon>
-        <FieldIcon icon={User}>
-          <input
-            type="text"
-            value={profile.chucdanh}
-            onChange={(e) => setProfile((p) => ({ ...p, chucdanh: e.target.value }))}
-            placeholder="Chức danh (VD: Điều dưỡng, Bác sĩ)"
-            className={inputBase}
-          />
-        </FieldIcon>
-        <textarea
-          rows={3}
-          value={profile.ghichu}
-          onChange={(e) => setProfile((p) => ({ ...p, ghichu: e.target.value }))}
-          placeholder="Ghi chú cá nhân (tuỳ chọn)"
-          className="w-full p-5 bg-white border border-gray-200 rounded outline-none transition-all text-slate-800 resize-none"
-        />
       </SettingsRow>
 
       <SettingsRow
@@ -863,191 +844,366 @@ const SettingsPage = () => {
   );
 
   const thongbaoTab = (
-    <div className="space-y-10 animate-in fade-in duration-500">
-      <div>
-        <h2 className="text-2xl font-bold mb-2 text-slate-900">Quản lý thông báo</h2>
-        <p className="text-gray-500 font-medium text-sm">
-          Tạo thông báo hệ thống với tiêu đề và nội dung. Chỉ các tài khoản được chọn (theo toàn bộ hệ thống, vai trò hoặc
-          danh sách cụ thể) mới nhận được thông báo trong hộp chuông.
-        </p>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+        <div className="flex gap-4 min-w-0">
+          <div className="w-12 h-12 rounded border border-slate-200 bg-[#0B2046] flex items-center justify-center shrink-0 shadow-sm">
+            <Bell className="text-white" size={22} aria-hidden />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-2xl font-bold text-slate-900">Quản lý thông báo</h2>
+            <p className="text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
+              Soạn tin hệ thống — người dùng nhận trong menu chuông. Chọn đối tượng: toàn bộ tài khoản hoạt động, theo vai
+              trò, hoặc danh sách cụ thể. Ai được tiếp nhận trước vẫn đọc theo thứ tự trong hộp thông báo của họ.
+            </p>
+          </div>
+        </div>
       </div>
 
+      {tbOk ? (
+        <div className="rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 flex items-start gap-2">
+          <Send size={16} className="shrink-0 mt-0.5 text-emerald-700" />
+          <span>{tbOk}</span>
+        </div>
+      ) : null}
       {tbErr ? (
         <div className="rounded border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{tbErr}</div>
       ) : null}
 
-      <SettingsRow
-        title="Tạo thông báo mới"
-        desc="Đối tượng nhận: tất cả tài khoản đang hoạt động, theo một hoặc nhiều vai trò, hoặc chọn tay từng tài khoản."
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Tiêu đề</label>
-            <input
-              type="text"
-              value={tbTitle}
-              onChange={(e) => setTbTitle(e.target.value)}
-              placeholder="Tiêu đề thông báo"
-              className="mt-1.5 w-full px-4 py-3 bg-white border border-gray-200 rounded outline-none text-slate-800"
-              maxLength={280}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Nội dung</label>
-            <textarea
-              rows={5}
-              value={tbBody}
-              onChange={(e) => setTbBody(e.target.value)}
-              placeholder="Nội dung chi tiết…"
-              className="mt-1.5 w-full p-4 bg-white border border-gray-200 rounded outline-none text-slate-800 resize-y min-h-[120px]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">Đối tượng nhận</span>
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
-                <input
-                  type="radio"
-                  name="tbLoai"
-                  checked={tbLoai === 'tat_ca'}
-                  onChange={() => setTbLoai('tat_ca')}
-                />
-                Tất cả tài khoản đang hoạt động
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
-                <input
-                  type="radio"
-                  name="tbLoai"
-                  checked={tbLoai === 'vai_tro'}
-                  onChange={() => setTbLoai('vai_tro')}
-                />
-                Theo vai trò
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
-                <input
-                  type="radio"
-                  name="tbLoai"
-                  checked={tbLoai === 'chon'}
-                  onChange={() => setTbLoai('chon')}
-                />
-                Chọn tài khoản cụ thể
-              </label>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        {/* Cột soạn thảo */}
+        <div className="xl:col-span-5 space-y-4">
+          <div className="rounded border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 bg-slate-50/90 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 min-w-0">
+                <Send size={18} className="text-blue-600 shrink-0" />
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Soạn &amp; gửi thông báo</h3>
+                  <p className="text-[11px] text-slate-500">Tiêu đề và nội dung hiển thị đúng trong danh sách chuông.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={resetThongBaoForm}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded border border-gray-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <RotateCcw size={14} />
+                Xóa form
+              </button>
             </div>
-          </div>
 
-          {tbLoai === 'vai_tro' ? (
-            <div className="rounded border border-gray-200 bg-gray-50/80 p-4 space-y-2">
-              <p className="text-xs text-gray-500 font-medium">Chọn một hoặc nhiều vai trò (khớp giá trị trong cột loại tài khoản).</p>
-              <div className="flex flex-wrap gap-2">
-                {tbRoleOptions.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => toggleTbRole(r)}
-                    className={`px-3 py-1.5 rounded text-xs font-bold border transition-all ${
-                      tbVaiTro.includes(r)
-                        ? 'bg-slate-900 text-white border-slate-900'
-                        : 'bg-white text-slate-600 border-gray-200 hover:border-gray-300'
+            <div className="p-5 space-y-5">
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Tiêu đề</label>
+                  <span className="text-[11px] text-slate-400 tabular-nums">{tbTitle.length}/280</span>
+                </div>
+                <input
+                  type="text"
+                  value={tbTitle}
+                  onChange={(e) => setTbTitle(e.target.value)}
+                  placeholder="Ví dụ: Lịch bảo trì hệ thống tối nay"
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded outline-none text-slate-800 text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+                  maxLength={280}
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Nội dung</label>
+                  <span className="text-[11px] text-slate-400 tabular-nums">{tbBody.length} ký tự</span>
+                </div>
+                <textarea
+                  rows={6}
+                  value={tbBody}
+                  onChange={(e) => setTbBody(e.target.value)}
+                  placeholder="Nội dung chi tiết hiển thị khi người dùng mở thông báo…"
+                  className="w-full p-4 bg-white border border-gray-200 rounded outline-none text-slate-800 text-sm resize-y min-h-[140px] focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+                />
+              </div>
+
+              <div className="rounded border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3 text-xs text-slate-600">
+                <p className="font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <Users size={14} className="text-slate-500" />
+                  Người nhận
+                </p>
+                <p>{tbRecipientPreview}</p>
+              </div>
+
+              <div>
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wide block mb-2">Đối tượng nhận</span>
+                <div className="space-y-2">
+                  <label
+                    className={`flex gap-3 cursor-pointer rounded border px-4 py-3 transition-all ${
+                      tbLoai === 'tat_ca'
+                        ? 'border-blue-600 bg-blue-50/40 ring-1 ring-blue-600/30'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
                     }`}
                   >
-                    {r}
-                  </button>
-                ))}
+                    <input
+                      type="radio"
+                      name="tbLoai"
+                      className="mt-1 shrink-0"
+                      checked={tbLoai === 'tat_ca'}
+                      onChange={() => setTbLoai('tat_ca')}
+                    />
+                    <span>
+                      <span className="font-bold text-sm text-slate-800 block">Tất cả tài khoản hoạt động</span>
+                      <span className="text-xs text-slate-500">Gửi đồng thời tới mọi tài khoản trạng thái «Hoạt động».</span>
+                    </span>
+                  </label>
+                  <label
+                    className={`flex gap-3 cursor-pointer rounded border px-4 py-3 transition-all ${
+                      tbLoai === 'vai_tro'
+                        ? 'border-blue-600 bg-blue-50/40 ring-1 ring-blue-600/30'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="tbLoai"
+                      className="mt-1 shrink-0"
+                      checked={tbLoai === 'vai_tro'}
+                      onChange={() => setTbLoai('vai_tro')}
+                    />
+                    <span>
+                      <span className="font-bold text-sm text-slate-800 block">Theo vai trò</span>
+                      <span className="text-xs text-slate-500">Lọc theo cột loại tài khoản (Admin, Staff, client…).</span>
+                    </span>
+                  </label>
+                  <label
+                    className={`flex gap-3 cursor-pointer rounded border px-4 py-3 transition-all ${
+                      tbLoai === 'chon'
+                        ? 'border-blue-600 bg-blue-50/40 ring-1 ring-blue-600/30'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="tbLoai"
+                      className="mt-1 shrink-0"
+                      checked={tbLoai === 'chon'}
+                      onChange={() => setTbLoai('chon')}
+                    />
+                    <span>
+                      <span className="font-bold text-sm text-slate-800 block">Chọn tài khoản cụ thể</span>
+                      <span className="text-xs text-slate-500">Tìm kiếm và tick từng tài khoản nhận tin.</span>
+                    </span>
+                  </label>
+                </div>
               </div>
-            </div>
-          ) : null}
 
-          {tbLoai === 'chon' ? (
-            <div className="rounded border border-gray-200 bg-gray-50/80 p-4 space-y-3">
-              <input
-                type="search"
-                value={tbAccountSearch}
-                onChange={(e) => setTbAccountSearch(e.target.value)}
-                placeholder="Tìm theo tên đăng nhập, vai trò, mã…"
-                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded text-sm outline-none"
-              />
-              <div className="max-h-56 overflow-y-auto rounded border border-gray-100 bg-white divide-y divide-gray-50">
-                {tbAccountsLoading ? (
-                  <div className="p-8 flex justify-center text-slate-400">
-                    <Loader2 className="animate-spin" size={24} />
+              {tbLoai === 'vai_tro' ? (
+                <div className="rounded border border-gray-200 bg-gray-50/80 p-4 space-y-3">
+                  <p className="text-xs text-slate-600 font-medium">Chọn một hoặc nhiều vai trò (bấm để bật/tắt).</p>
+                  <div className="flex flex-wrap gap-2">
+                    {tbRoleOptions.map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => toggleTbRole(r)}
+                        className={`px-3 py-1.5 rounded text-xs font-bold border transition-all ${
+                          tbVaiTro.includes(r)
+                            ? 'bg-slate-900 text-white border-slate-900'
+                            : 'bg-white text-slate-600 border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
                   </div>
-                ) : tbFilteredAccounts.length ? (
-                  tbFilteredAccounts.map((a) => (
-                    <label
-                      key={a.mataikhoan}
-                      className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 cursor-pointer text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={tbChonIds.includes(a.mataikhoan)}
-                        onChange={() => toggleTbAccount(a.mataikhoan)}
-                      />
-                      <span className="font-medium text-slate-800 truncate flex-1">{a.tentaikhoan}</span>
-                      <span className="text-xs text-slate-500 shrink-0">{a.loaitaikhoan}</span>
-                      {a.trangthai && a.trangthai !== 'Hoạt động' ? (
-                        <span className="text-[10px] font-bold text-amber-600 shrink-0">{a.trangthai}</span>
-                      ) : null}
-                    </label>
-                  ))
-                ) : (
-                  <p className="p-4 text-sm text-slate-500">Không có tài khoản.</p>
-                )}
-              </div>
-              <p className="text-[11px] text-gray-500">Đã chọn {tbChonIds.length} tài khoản.</p>
-            </div>
-          ) : null}
+                </div>
+              ) : null}
 
-          <div className="flex justify-end pt-2">
-            <button
-              type="button"
-              disabled={tbSubmitting}
-              onClick={() => void submitThongBao()}
-              className="inline-flex items-center gap-2 px-8 py-3.5 bg-blue-600 text-white rounded font-bold text-sm hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50"
-            >
-              {tbSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-              Gửi thông báo
-            </button>
+              {tbLoai === 'chon' ? (
+                <div className="rounded border border-gray-200 bg-gray-50/80 p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+                    <input
+                      type="search"
+                      value={tbAccountSearch}
+                      onChange={(e) => setTbAccountSearch(e.target.value)}
+                      placeholder="Tìm theo tên đăng nhập, vai trò, mã…"
+                      className="flex-1 min-w-0 px-4 py-2.5 bg-white border border-gray-200 rounded text-sm outline-none focus:ring-2 focus:ring-blue-500/25"
+                    />
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={selectAllTbFiltered}
+                        className="px-3 py-2 rounded border border-gray-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50"
+                      >
+                        Chọn tất cả (lọc)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearTbChonIds}
+                        className="px-3 py-2 rounded border border-gray-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50"
+                      >
+                        Bỏ chọn hết
+                      </button>
+                    </div>
+                  </div>
+                  <div className="max-h-56 overflow-y-auto rounded border border-gray-100 bg-white divide-y divide-gray-100">
+                    {tbAccountsLoading ? (
+                      <div className="p-8 flex justify-center text-slate-400">
+                        <Loader2 className="animate-spin" size={24} />
+                      </div>
+                    ) : tbFilteredAccounts.length ? (
+                      tbFilteredAccounts.map((a) => (
+                        <label
+                          key={a.mataikhoan}
+                          className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 cursor-pointer text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={tbChonIds.includes(a.mataikhoan)}
+                            onChange={() => toggleTbAccount(a.mataikhoan)}
+                          />
+                          <span className="font-medium text-slate-800 truncate flex-1">{a.tentaikhoan}</span>
+                          <span className="text-xs text-slate-500 shrink-0">{a.loaitaikhoan}</span>
+                          {a.trangthai && a.trangthai !== 'Hoạt động' ? (
+                            <span className="text-[10px] font-bold text-amber-600 shrink-0">{a.trangthai}</span>
+                          ) : null}
+                        </label>
+                      ))
+                    ) : (
+                      <p className="p-4 text-sm text-slate-500">Không có tài khoản khớp tìm kiếm.</p>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500">Đã chọn {tbChonIds.length} tài khoản.</p>
+                </div>
+              ) : null}
+
+              <div className="rounded border border-gray-100 bg-slate-50/50 p-4 space-y-2">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Xem trước (chuông)</p>
+                <p className="font-bold text-slate-900 text-sm line-clamp-2">{tbTitle.trim() || '— Tiêu đề —'}</p>
+                <p className="text-xs text-slate-600 line-clamp-4 whitespace-pre-wrap">
+                  {tbBody.trim() || 'Nội dung sẽ hiển thị tại đây…'}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={tbSubmitting}
+                  onClick={() => void submitThongBao()}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded font-bold text-sm hover:bg-blue-700 shadow-sm transition-all disabled:opacity-50"
+                >
+                  {tbSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  Gửi thông báo
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </SettingsRow>
 
-      <SettingsRow title="Thông báo đã gửi" desc="50 bản ghi gần nhất.">
-        {tbHistoryLoading ? (
-          <div className="py-12 flex justify-center text-slate-400">
-            <Loader2 className="animate-spin" size={28} />
+        {/* Cột lịch sử */}
+        <div className="xl:col-span-7 space-y-4">
+          <div className="rounded border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 bg-slate-50/90 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Lịch sử đã gửi</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">Tối đa 50 bản ghi gần nhất — đối chiếu người nhận &amp; tỷ lệ đã đọc.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadThongBaoTab()}
+                disabled={tbHistoryLoading}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded border border-gray-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw size={14} className={tbHistoryLoading ? 'animate-spin' : ''} />
+                Làm mới
+              </button>
+            </div>
+
+            {tbHistoryLoading ? (
+              <div className="py-16 flex justify-center text-slate-400">
+                <Loader2 className="animate-spin" size={28} />
+              </div>
+            ) : tbHistory.length === 0 ? (
+              <div className="p-10 text-center text-sm text-slate-500 border-t border-gray-50">
+                Chưa có thông báo nào được gửi từ quản trị.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left min-w-[640px]">
+                  <thead className="bg-gray-50 text-[11px] font-bold text-slate-600 uppercase tracking-wide border-b border-gray-100">
+                    <tr>
+                      <th className="px-4 py-3">Tiêu đề</th>
+                      <th className="px-4 py-3 hidden md:table-cell">Tóm tắt</th>
+                      <th className="px-4 py-3 whitespace-nowrap">Thời gian</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap hidden sm:table-cell">Người tạo</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap">Nhận</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap hidden sm:table-cell">Đã đọc</th>
+                      <th className="px-4 py-3 text-center whitespace-nowrap w-[100px]">Tỷ lệ</th>
+                      <th className="px-4 py-3 text-right whitespace-nowrap">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {tbHistory.map((row) => {
+                      const pct =
+                        row.so_nguoi_nhan > 0 ? Math.round((100 * row.so_da_doc) / row.so_nguoi_nhan) : 0;
+                      const open = tbExpandedId === row.id;
+                      return (
+                        <React.Fragment key={row.id}>
+                          <tr className="hover:bg-slate-50/80 align-top">
+                            <td className="px-4 py-3 font-medium text-slate-800 max-w-[200px]">
+                              <span className="line-clamp-2">{row.tieu_de}</span>
+                            </td>
+                            <td className="px-4 py-3 text-slate-500 max-w-xs truncate hidden md:table-cell">
+                              {row.noi_dung_rut_gon}
+                            </td>
+                            <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs align-middle">
+                              {formatTbTime(row.created_at)}
+                            </td>
+                            <td className="px-4 py-3 text-right text-xs text-slate-500 hidden sm:table-cell tabular-nums align-middle">
+                              {row.nguoi_tao != null ? `#${row.nguoi_tao}` : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums text-slate-700 align-middle">
+                              {row.so_nguoi_nhan}
+                            </td>
+                            <td className="px-4 py-3 text-right tabular-nums text-slate-700 hidden sm:table-cell align-middle">
+                              {row.so_da_doc}
+                            </td>
+                            <td className="px-4 py-3 align-middle">
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="w-full max-w-[72px] h-2 rounded bg-slate-200 overflow-hidden border border-slate-100">
+                                  <div
+                                    className="h-full rounded bg-blue-600 transition-all"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-500 tabular-nums">{pct}%</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right align-middle">
+                              <button
+                                type="button"
+                                onClick={() => setTbExpandedId(open ? null : row.id)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded border border-gray-200 bg-white text-xs font-bold text-slate-600 hover:bg-slate-50"
+                              >
+                                {open ? <EyeOff size={14} /> : <Eye size={14} />}
+                                {open ? 'Thu gọn' : 'Chi tiết'}
+                              </button>
+                            </td>
+                          </tr>
+                          {open ? (
+                            <tr className="bg-slate-50/90">
+                              <td colSpan={8} className="px-4 py-4 text-xs text-slate-700 border-b border-gray-100">
+                                <p className="font-bold text-slate-800 mb-1">Nội dung (rút gọn tối đa 200 ký tự)</p>
+                                <p className="whitespace-pre-wrap leading-relaxed">{row.noi_dung_rut_gon || '—'}</p>
+                              </td>
+                            </tr>
+                          ) : null}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        ) : tbHistory.length === 0 ? (
-          <p className="text-sm text-slate-500">Chưa có thông báo nào.</p>
-        ) : (
-          <div className="overflow-x-auto rounded border border-gray-200">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 text-xs font-bold text-slate-600 uppercase tracking-wide">
-                <tr>
-                  <th className="px-4 py-3">Tiêu đề</th>
-                  <th className="px-4 py-3 hidden md:table-cell">Nội dung (rút gọn)</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Thời gian</th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap">Người nhận</th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap hidden sm:table-cell">Đã đọc</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {tbHistory.map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-50/80">
-                    <td className="px-4 py-3 font-medium text-slate-800 max-w-[200px] truncate">{row.tieu_de}</td>
-                    <td className="px-4 py-3 text-slate-500 max-w-xs truncate hidden md:table-cell">
-                      {row.noi_dung_rut_gon}
-                    </td>
-                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{formatTbTime(row.created_at)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{row.so_nguoi_nhan}</td>
-                    <td className="px-4 py-3 text-right tabular-nums hidden sm:table-cell">{row.so_da_doc}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SettingsRow>
+        </div>
+      </div>
     </div>
   );
 

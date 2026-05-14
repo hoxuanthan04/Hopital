@@ -63,7 +63,7 @@ export default function BookAppointment() {
     lastName: '',
     email: '',
     phone: '',
-    department: '',
+    department: 'Khám bệnh',
     doctor: '',
     date: '',
     time: '',
@@ -136,6 +136,11 @@ export default function BookAppointment() {
       return;
     }
 
+    if (formData.department === 'Chẩn đoán hình ảnh - xét nghiệm' && !formData.doctor.trim()) {
+      window.alert('Vui lòng chọn dịch vụ chẩn đoán hình ảnh / xét nghiệm cần đăng ký.');
+      return;
+    }
+
     const slot = parseLocalAppointmentSlot(date, time);
     if (!slot) {
       window.alert('Ngày hoặc giờ khám không hợp lệ. Vui lòng chọn lại.');
@@ -154,14 +159,12 @@ export default function BookAppointment() {
         ? Number(meta.client_namsinh)
         : null;
 
-    const extra = [
-      meta.client_socccd ? `CCCD:${String(meta.client_socccd).trim()}` : '',
-      email ? `Email:${email}` : '',
-    ]
-      .filter(Boolean)
-      .join('|');
-    const lydokhamRaw = [extra, notes].filter(Boolean).join(' | ');
-    const lydokham = lydokhamRaw.slice(0, 200);
+    const imagingNote =
+      formData.department === 'Chẩn đoán hình ảnh - xét nghiệm' && formData.doctor.trim()
+        ? `Dịch vụ yêu cầu: ${formData.doctor.trim()}\n`
+        : '';
+    /** Chỉ gửi nội dung lý do/triệu chứng; CCCD và SĐT đã có trường riêng, email không nên nhét vào lý do khám. */
+    const lydokham = `${imagingNote}${notes}`.slice(0, 200);
 
     setSubmitting(true);
     try {
@@ -170,7 +173,7 @@ export default function BookAppointment() {
         socccd,
         sodienthoai: phone,
         namsinh,
-        loaikham: 'Đặt lịch online',
+        loaikham: formData.department || 'Đặt lịch online',
         lydokham,
         ngaykham: date,
         giokham: time,
@@ -210,7 +213,7 @@ export default function BookAppointment() {
                 lastName: '',
                 email: '',
                 phone: '',
-                department: '',
+                department: 'Khám bệnh',
                 doctor: '',
                 date: '',
                 time: '',
@@ -285,6 +288,50 @@ export default function BookAppointment() {
               <div>
                 <h3 className="text-xl font-bold text-[#0B2046] mb-4 pb-2 border-b border-slate-100">2. Chi tiết lịch khám</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">Loại đăng ký *</label>
+                    <div className="relative">
+                      <select
+                        name="department"
+                        required
+                        value={formData.department}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setFormData((prev) => ({
+                            ...prev,
+                            department: value,
+                            doctor: value === 'Chẩn đoán hình ảnh - xét nghiệm' ? prev.doctor : '',
+                          }));
+                        }}
+                        className="pl-5 w-full py-2.5 pr-3 border border-slate-200 rounded focus:ring-2 focus:ring-[#0084FF] focus:border-transparent outline-none transition-all bg-white"
+                      >
+                        <option value="Khám bệnh">Khám bệnh</option>
+                        <option value="Chẩn đoán hình ảnh - xét nghiệm">Chẩn đoán hình ảnh - xét nghiệm</option>
+                      </select>
+                    </div>
+                  </div>
+                  {formData.department === 'Chẩn đoán hình ảnh - xét nghiệm' && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Dịch vụ mong muốn *</label>
+                      <div className="relative">
+                        <select
+                          name="doctor"
+                          required
+                          value={formData.doctor}
+                          onChange={handleChange}
+                          className="pl-5 w-full py-2.5 pr-3 border border-slate-200 rounded focus:ring-2 focus:ring-[#0084FF] focus:border-transparent outline-none transition-all bg-white"
+                        >
+                          <option value="">Chọn dịch vụ</option>
+                          <option value="X-Quang">X-Quang</option>
+                          <option value="MRI">MRI</option>
+                          <option value="CT">CT</option>
+                          <option value="Siêu âm">Siêu âm</option>
+                          <option value="Xét nghiệm">Xét nghiệm</option>
+                          <option value="Nội soi">Nội soi</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Ngày khám*</label>
                     <div className="relative">

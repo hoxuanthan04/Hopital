@@ -19,3 +19,19 @@ export async function uploadImageSingle(file, type = 'bacsi') {
   });
   return res.data;
 }
+
+/**
+ * Đẩy file DICOM lên backend (POST /api/upload/dicom).
+ * @param {File} file
+ * @returns {Promise<{ url: string, publicId?: string, originalName?: string }>}
+ */
+export async function uploadDicomSingle(file) {
+  const fd = new FormData();
+  fd.append('dicom', file);
+  const url = `${base}/api/upload/dicom`;
+  const res = await axios.post(url, fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 300000,
+  });
+  return res.data;
+}

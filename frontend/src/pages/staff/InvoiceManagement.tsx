@@ -16,7 +16,7 @@ import Pagination from '../../components/admin/Pagination';
 import HoaDonService from '../../services/hoadon.service';
 import { getBenhNhan } from '../../services/benhnhanApi';
 
-const ITEMS_PER_PAGE = 8;
+const ITEMS_PER_PAGE = 7;
 
 type InvoiceRow = {
   mahoadon: number;
@@ -413,7 +413,7 @@ const InvoiceManagement: React.FC = () => {
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-lg text-sm font-bold shadow hover:bg-indigo-700"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-600 text-white rounded text-sm font-bold shadow hover:bg-slate-700"
         >
           <Plus size={18} />
           Tạo hóa đơn
@@ -485,31 +485,31 @@ const InvoiceManagement: React.FC = () => {
                   const conLai = conPhaiThuBenhNhan(inv);
                   return (
                     <tr key={inv.mahoadon} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="py-5 px-8">
+                      <td className="py-3 px-8">
                         <span className="text-sm font-black text-slate-800">#{inv.mahoadon}</span>
                         <p className="text-[10px] text-slate-400 font-bold">Hóa đơn thanh toán</p>
                       </td>
-                      <td className="py-5 px-4">
+                      <td className="py-3 px-4">
                         <div className="font-bold text-slate-700 text-sm">{inv.hoten || '—'}</div>
                         <div className="text-sm text-slate-400">Mã BN: {inv.mabenhnhan}</div>
                       </td>
-                      <td className="py-5 px-4 text-right font-medium text-slate-600 text-sm">{fmtVnd(inv.tongtien)}</td>
-                      <td className="py-5 px-4 text-right font-bold text-emerald-600 text-sm">
+                      <td className="py-3 px-4 text-right font-medium text-slate-600 text-sm">{fmtVnd(inv.tongtien)}</td>
+                      <td className="py-3 px-4 text-right font-bold text-emerald-600 text-sm">
                         {bh > 0 ? `−${fmtVnd(bh)}` : fmtVnd(0)}
                       </td>
-                      <td className="py-5 px-4 text-right font-black text-slate-800 text-sm">{fmtVnd(conLai)}</td>
-                      <td className="py-5 px-4 text-center">
+                      <td className="py-3 px-4 text-right font-black text-slate-800 text-sm">{fmtVnd(conLai)}</td>
+                      <td className="py-3 px-4 text-center">
                         <span
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold tracking-tight ${
+                          className={`px-3 py-1.5 text-xs font-bold tracking-tight ${
                             st === 'Đã thanh toán'
-                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-100'
-                              : 'bg-amber-50 text-amber-900 border border-amber-100'
+                              ? ' text-emerald-800 '
+                              : ' text-amber-900  '
                           }`}
                         >
                           {st === 'Đã thanh toán' ? 'Đã thu' : 'Chờ thu'}
                         </span>
                       </td>
-                      <td className="py-5 px-8 text-right">
+                      <td className="py-3 px-8 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
@@ -587,7 +587,7 @@ const InvoiceManagement: React.FC = () => {
       {createOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40" onClick={() => !saving && setCreateOpen(false)}>
           <div
-            className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 space-y-4"
+            className="bg-white rounded shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto p-6 space-y-4"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -598,17 +598,17 @@ const InvoiceManagement: React.FC = () => {
                 <X size={20} />
               </button>
             </div>
-            <div className="flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+            <div className="flex rounded border border-slate-200 p-0.5 bg-slate-50">
               <button
                 type="button"
-                className={`flex-1 py-2 text-xs font-bold rounded-md ${createMode === 'manual' ? 'bg-white shadow text-indigo-700' : 'text-slate-500'}`}
+                className={`flex-1 py-2 text-sm font-medium rounded ${createMode === 'manual' ? 'bg-white shadow text-slate-700' : 'text-slate-400'}`}
                 onClick={() => setCreateMode('manual')}
               >
                 Nhập tay
               </button>
               <button
                 type="button"
-                className={`flex-1 py-2 text-xs font-bold rounded-md ${createMode === 'auto' ? 'bg-white shadow text-indigo-700' : 'text-slate-500'}`}
+                className={`flex-1 py-2 text-sm font-medium rounded ${createMode === 'auto' ? 'bg-white shadow text-slate-700' : 'text-slate-400'}`}
                 onClick={() => setCreateMode('auto')}
               >
                 Tự động từ hồ sơ
@@ -623,7 +623,7 @@ const InvoiceManagement: React.FC = () => {
                     required
                     value={form.mabenhnhan}
                     onChange={(e) => setForm((f) => ({ ...f, mabenhnhan: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
                   >
                     <option value="">— Chọn —</option>
                     {patients.map((p) => (
@@ -641,7 +641,7 @@ const InvoiceManagement: React.FC = () => {
                     min={1}
                     value={form.tongtien}
                     onChange={(e) => setForm((f) => ({ ...f, tongtien: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
                   />
                 </div>
                 <div>
@@ -651,7 +651,7 @@ const InvoiceManagement: React.FC = () => {
                     min={0}
                     value={form.sotienbaohiemchitra}
                     onChange={(e) => setForm((f) => ({ ...f, sotienbaohiemchitra: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
                   />
                 </div>
                 <div>
@@ -661,10 +661,10 @@ const InvoiceManagement: React.FC = () => {
                     min={0}
                     value={form.tamung}
                     onChange={(e) => setForm((f) => ({ ...f, tamung: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
                   />
                 </div>
-                <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-sm">
+                <div className="rounded border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-sm">
                   <span className="text-slate-600">Thực thu (còn BN): </span>
                   <b className="text-indigo-900">
                     {fmtVnd(Math.max(0, num(form.tongtien) - num(form.sotienbaohiemchitra) - num(form.tamung)))}
@@ -676,18 +676,18 @@ const InvoiceManagement: React.FC = () => {
                     rows={2}
                     value={form.danhsachdichvu}
                     onChange={(e) => setForm((f) => ({ ...f, danhsachdichvu: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm resize-none"
                     placeholder="VD: Khám nội, Xét nghiệm máu..."
                   />
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg" onClick={() => setCreateOpen(false)} disabled={saving}>
+                  <button type="button" className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded" onClick={() => setCreateOpen(false)} disabled={saving}>
                     Hủy
                   </button>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg disabled:opacity-60 inline-flex items-center gap-2"
+                    className="px-5 py-2 text-sm font-bold text-white bg-slate-600 rounded disabled:opacity-60 inline-flex items-center gap-2"
                   >
                     {saving && <Loader2 className="animate-spin" size={16} />}
                     Lưu
@@ -702,7 +702,7 @@ const InvoiceManagement: React.FC = () => {
                     required
                     value={autoMahosokham}
                     onChange={(e) => setAutoMahosokham(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
                   >
                     <option value="">— Chọn hồ sơ —</option>
                     {hosoChoTT.map((h) => (
@@ -722,7 +722,7 @@ const InvoiceManagement: React.FC = () => {
                   </p>
                 )}
                 {autoPreview && !previewLoading && (
-                  <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs space-y-1">
+                  <div className="rounded border border-slate-100 bg-slate-50 p-3 text-xs space-y-1">
                     <div className="flex justify-between">
                       <span className="text-slate-500">Cận lâm sàng</span>
                       <b>{fmtVnd(autoPreview.tong_canlamsang)}</b>
@@ -754,7 +754,7 @@ const InvoiceManagement: React.FC = () => {
                     min={0}
                     value={autoBh}
                     onChange={(e) => setAutoBh(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
                   />
                 </div>
                 <div>
@@ -764,11 +764,11 @@ const InvoiceManagement: React.FC = () => {
                     min={0}
                     value={autoTamung}
                     onChange={(e) => setAutoTamung(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-slate-200 rounded px-3 py-2 text-sm"
                   />
                 </div>
                 {autoPreview && (
-                  <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-sm">
+                  <div className="rounded border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-sm">
                     <span className="text-slate-600">Thực thu (còn BN): </span>
                     <b className="text-indigo-900">
                       {fmtVnd(
@@ -783,7 +783,7 @@ const InvoiceManagement: React.FC = () => {
                   </div>
                 )}
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg" onClick={() => setCreateOpen(false)} disabled={saving}>
+                  <button type="button" className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded" onClick={() => setCreateOpen(false)} disabled={saving}>
                     Hủy
                   </button>
                   <button
@@ -793,7 +793,7 @@ const InvoiceManagement: React.FC = () => {
                       !autoPreview ||
                       Number(autoPreview.da_co_hoadon_mahoadon) > 0
                     }
-                    className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg disabled:opacity-60 inline-flex items-center gap-2"
+                    className="px-5 py-2 text-sm font-bold text-white bg-slate-600 rounded disabled:opacity-60 inline-flex items-center gap-2"
                   >
                     {saving && <Loader2 className="animate-spin" size={16} />}
                     Tạo hóa đơn
@@ -808,7 +808,7 @@ const InvoiceManagement: React.FC = () => {
       {detailId != null && detailHeader && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40" onClick={closeDetail}>
           <div
-            className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4"
+            className="bg-white rounded shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-4"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -824,7 +824,7 @@ const InvoiceManagement: React.FC = () => {
                 <X size={20} />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-sm border border-slate-100 rounded-lg p-3 bg-slate-50">
+            <div className="grid grid-cols-2 gap-2 text-sm border border-slate-100 rounded p-3 bg-slate-50">
               <div>
                 <span className="text-slate-500">Tổng:</span> <b>{fmtVnd(detailHeader.tongtien)}</b>
               </div>
@@ -849,7 +849,7 @@ const InvoiceManagement: React.FC = () => {
             ) : detailRows.length === 0 ? (
               <p className="text-sm text-slate-400 italic">Chưa có dòng chi tiết trong bảng hoadon_dichvu.</p>
             ) : (
-              <table className="w-full text-left text-sm border border-slate-100 rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm border border-slate-100 rounded overflow-hidden">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase">
                   <tr>
                     <th className="px-3 py-2">Dịch vụ</th>
@@ -877,7 +877,7 @@ const InvoiceManagement: React.FC = () => {
                     type="button"
                     onClick={() => openPayosCheckout(detailHeader)}
                     disabled={payosLoadingId === detailHeader.mahoadon}
-                    className="px-4 py-2 text-sm font-bold text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-60 inline-flex items-center gap-2"
+                    className="px-4 py-2 text-sm font-bold text-white bg-sky-600 rounded hover:bg-sky-700 disabled:opacity-60 inline-flex items-center gap-2"
                   >
                     {payosLoadingId === detailHeader.mahoadon ? (
                       <Loader2 className="animate-spin" size={16} />
@@ -889,7 +889,7 @@ const InvoiceManagement: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => markPaid(detailHeader)}
-                    className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700"
+                    className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded hover:bg-emerald-700"
                   >
                     Ghi nhận thanh toán đủ
                   </button>
@@ -898,7 +898,7 @@ const InvoiceManagement: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleDelete(detailHeader)}
-                className="px-4 py-2 text-sm font-bold text-rose-700 bg-rose-50 rounded-lg hover:bg-rose-100"
+                className="px-4 py-2 text-sm font-bold text-rose-700 bg-rose-50 rounded hover:bg-rose-100"
               >
                 Xóa hóa đơn
               </button>

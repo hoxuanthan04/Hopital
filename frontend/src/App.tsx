@@ -43,6 +43,7 @@ import InvoiceManagement from './pages/staff/InvoiceManagement';
 import Examination from './pages/staff/Examination'
 import GoiSo from './pages/staff/GoiSo';
 import PatientQueue from './pages/staff/PatientQueue'
+import DiagnosticImaging from './pages/staff/DiagnosticImaging'
 
 // --- COMPONENTS ---
 import ProtectedRoute from './components/ProtectedRoute';
@@ -128,6 +129,7 @@ export default function App() {
             <Route path='/staff/schedules' element={<Navigate to="/staff/my-schedule" replace />} />
             <Route path='/staff/examination' element={<Examination />} />
             <Route path='/staff/patientqueue' element={<PatientQueue/>}/>
+            <Route path='/staff/diagnostic-imaging' element={<DiagnosticImaging/>}/>
           </Route>
         </Route>
 
